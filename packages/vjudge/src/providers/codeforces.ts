@@ -229,7 +229,7 @@ export default class CodeforcesProvider extends BasicFetcher implements IBasicPr
     }
 
     // TL;DR; add `gym` to this list to enable codeforces gym
-    entryProblemLists = ['main'];
+    entryProblemLists = ['main']; 
     async listProblem(page: number, resync = false, listName: string) {
         if (resync && page > 1) return [];
         if (resync && listName.startsWith('GYM')) return [];
@@ -275,6 +275,30 @@ export default class CodeforcesProvider extends BasicFetcher implements IBasicPr
         return null;
     }
 
+    async tryReadRidSubmission(rid, contestId = '', allowEmpty = false) {
+        for (let i = 1; i <= 3; i++) {
+            await sleep(1000);
+            logger.info("trying to read submission...")
+            const { document } = await this.html(contestId ? `/gym/${contestId}/my` : '/problemset/status?my=on');
+            this.csrf = this.getCsrfTokenOnDocument(document);
+            const nodes = document.querySelectorAll('[data-submission-id]')
+            for(let i = 0; i < Math.min(nodes.length, 2); i++) {
+                await sleep(1000);
+                const sid = nodes[i].getAttribute('data-submission-id');
+                const url = nodes[i].querySelector(".view-source").getAttribute("href");
+                logger.info("trying submission ", sid , " url: ", url);
+                const { document: submission } = await this.html(url);
+                this.csrf = this.getCsrfTokenOnDocument(submission);
+                if(submission.querySelector(".program-source").textContent.includes(rid))
+                {
+                    logger.info("found correct submission");
+                    return sid;
+                }
+            }
+        }
+        return null;
+    }
+
     async submitProblem(id: string, lang: string, code: string, info, next, end) {
         const programTypeId = lang.includes('codeforces.') ? lang.split('codeforces.')[1] : '54';
         const [type, contestId, problemId] = parseProblemId(id);
@@ -285,7 +309,8 @@ export default class CodeforcesProvider extends BasicFetcher implements IBasicPr
             const latestSubmission = await this.readLatestSubmission(type === 'GYM' ? contestId : '', true);
             const [csrf, ftaa, bfaa] = await this.getCsrfToken(endpoint);
             // TODO check submit time to ensure submission
-            const { text: submit, redirects } = await this.post(`${endpoint}?csrf_token=${csrf}`).send({
+            //const { text: submit, redirects } = 
+			await this.post(`${endpoint}?csrf_token=${csrf}`).send({
                 csrf_token: csrf,
                 action: 'submitSolutionFormSubmitted',
                 programTypeId,
@@ -297,15 +322,19 @@ export default class CodeforcesProvider extends BasicFetcher implements IBasicPr
                 _tta: this.tta(this.getCookie('39ce7')),
                 contestId,
                 submittedProblemIndex: problemId,
-            });
-            const { window: { document: statusDocument } } = new JSDOM(submit);
-            const message = Array.from(statusDocument.querySelectorAll('.error'))
-                .map((i) => i.textContent).join('').replace(/&nbsp;/g, ' ').trim();
-            if (message) throw new Error(message);
-            const submission = await this.readLatestSubmission(type === 'GYM' ? contestId : '');
+            })
+			.catch((error) => {
+      			logger.info(error);
+    		});
+			//logger.info(submit);
+            //const { window: { document: statusDocument } } = new JSDOM(submit);
+            //const message = Array.from(statusDocument.querySelectorAll('.error'))
+            //    .map((i) => i.textContent).join('').replace(/&nbsp;/g, ' ').trim();
+            //if (message) throw new Error(message);
+            const submission = await this.tryReadRidSubmission(info.rid, type === 'GYM' ? contestId : '');
             if (!submission) throw new Error('Failed to get submission id.');
-            if (submission === latestSubmission) throw new Error('Submission page is not updated.');
-            if (redirects.length === 0 || !redirects.toString().includes('my')) throw new Error('No redirect to submission page.');
+            //if (submission === latestSubmission) throw new Error('Submission page is not updated.');
+            //if (redirects.length === 0 || !redirects.toString().includes('my')) throw new Error('No redirect to submission page.');
             return type !== 'GYM' ? submission : `${contestId}#${submission}`;
         } catch (e) {
             next({ message: e.message });
