@@ -1,7 +1,7 @@
 {
     "name": "@hydrooj/hydrojudge",
     "bin": "bin/hydrojudge.js",
-    "version": "3.5.0-beta.2",
+    "version": "3.5.0-beta.3",
     "main": "./src/index.ts",
     "author": "undefined <i@undefined.moe>",
     "repository": "https://github.com/hydro-dev/Hydro.git",
@@ -13,7 +13,7 @@
         "p-queue": "^8.1.0",
         "schemastery": "^3.16.1",
         "semver": "^7.7.2",
-        "shell-quote": "^1.8.2",
+        "shell-quote": "^1.8.3",
         "superagent": "^10.2.1",
         "ws": "^8.18.2"
     },
