@@ -76,7 +76,7 @@ class MarkdownHandler extends Handler {
 
 class SystemConfigSchemaHandler extends Handler {
   async get() {
-    const schema = convert(Schema.intersect(this.ctx.config.settings) as any, true);
+    const schema = convert(Schema.intersect(this.ctx.setting.settings) as any, true);
     this.response.body = schema;
   }
 }
@@ -183,6 +183,7 @@ export function apply(ctx: Context) {
         about: Schema.string().role('markdown').default(defaultAbout),
       }),
     }));
+    ctx.Route('config_schema', '/manage/config/schema.json', SystemConfigSchemaHandler, PRIV.PRIV_EDIT_SYSTEM);
   });
   if (process.env.HYDRO_CLI) return;
   ctx.Route('wiki_help', '/wiki/help', WikiHelpHandler);
@@ -190,7 +191,6 @@ export function apply(ctx: Context) {
   ctx.Route('set_theme', '/set_theme/:theme', SetThemeHandler);
   ctx.Route('set_legacy', '/legacy', LegacyModeHandler);
   ctx.Route('markdown', '/markdown', MarkdownHandler);
-  ctx.Route('config_schema', '/manage/config/schema.json', SystemConfigSchemaHandler, PRIV.PRIV_EDIT_SYSTEM);
   ctx.Route('media', '/media', RichMediaHandler);
   ctx.on('handler/after/DiscussionRaw', async (that) => {
     if (that.args.render && that.response.type === 'text/markdown') {
