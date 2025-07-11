@@ -2,12 +2,15 @@
 import os from 'os';
 import { LangConfig, STATUS } from '@hydrooj/common';
 import {
-    Context, db, DomainModel, JudgeResultCallbackContext, Logger,
-    ProblemModel, RecordModel, Service, SettingModel,
-    sleep, SystemModel, TaskModel, Time, yaml,
+    Context, db, DomainModel, Handler, JudgeResultCallbackContext, Logger,
+    param,
+    PRIV,
+    ProblemModel, RecordModel, requireSudo, Schema, Service, SettingModel,
+    sleep, SystemModel, TaskModel, Time, Types, ValidationError, yaml,
 } from 'hydrooj';
 import { BasicProvider, IBasicProvider, RemoteAccount } from './interface';
 import providers from './providers/index';
+import { inject } from 'hydrooj/src/lib/ui';
 
 const coll = db.collection('vjudge');
 const collMount = db.collection('vjudge.mount');
@@ -82,7 +85,13 @@ class AccountService {
 
     async sync(target: string, resync = false, list: string) {
         let page = 1;
-        let pids = await this.api.listProblem(page, resync, list);
+        let pids;
+        try {
+            pids = await this.api.listProblem(page, resync, list);
+        } catch(e) {
+            logger.error(e);
+            return;
+        }
         const [domainId, namespaceId] = target.split('.');
         while (pids.length) {
             logger.info(`${domainId}: Syncing page ${page}`);
@@ -255,6 +264,52 @@ class VJudgeService extends Service {
     }
 }
 
+class VJudgeConfigHandler extends Handler {
+
+    async prepare() {
+        this.checkPriv(PRIV.PRIV_EDIT_SYSTEM);
+    }
+
+    @requireSudo
+    async get() {
+        this.response.template = 'vjudge_settings.html';
+        const result = await coll.findOne({type: "codeforces"});
+        if(result) {
+            const jsessionid = result.cookie[0]?.replace("JSESSIONID=", "").replace(";Path=/; HttpOnly", "");
+            const cookies = result.cookie[1]?.replace("39ce7=", "").replace("; 70a7c28f3de=", "|").split("|");
+            this.response.body = {
+                handle: result.handle,
+                password: result.password,
+                jsessionid,
+                cookie1: cookies[0],
+                cookie2: cookies[1]
+            };
+        }
+    }
+
+    @requireSudo
+    async post(args: any) {
+        const result = await coll.findOne({type: "codeforces"});
+        if(result) {
+            coll.updateOne({type: "codeforces"}, { $set: { 
+                type: "codeforces", 
+                handle: args.handle,
+                password: args.password,
+                cookie: [`JSESSIONID=${args.jsessionid};Path=/; HttpOnly`, `39ce7=${args.cookie1}; 70a7c28f3de=${args.cookie2}`]
+            }});
+        } else {
+            // @ts-ignore
+            coll.insertOne({
+                    type: "codeforces",
+                    handle: args.handle,
+                    password: args.password,
+                    cookie: [`JSESSIONID=${args.jsessionid};Path=/; HttpOnly`, `39ce7=${args.cookie1}; 70a7c28f3de=${args.cookie2}`]
+            });
+        }
+        this.back();
+    }
+}
+
 export { BasicFetcher } from './fetch';
 export { VERDICT } from './verdict';
 export * from './interface';
@@ -264,6 +319,8 @@ export async function apply(ctx: Context) {
     ctx.plugin(VJudgeService);
     if (process.env.NODE_APP_INSTANCE !== '0') return;
     if (process.env.HYDRO_CLI) return;
+    ctx.injectUI('ControlPanel', 'vjudge_setting');
+    ctx.Route("vjudge_setting", "/manage/vjudge", VJudgeConfigHandler);
     ctx.inject(['migration'], async (c) => {
         c.migration.registerChannel('vjudge', [
             async function init() { }, // eslint-disable-line

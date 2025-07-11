@@ -1,0 +1,37 @@
+{% extends "manage_base.html" %}
+{% block manage_content %}
+<div class="section">
+  <div class="section__header">
+    <h1 class="section__title">VJudge 配置</h1>
+  </div>
+  <div class="section__body">
+    <p>配置修改后重启Hydro生效</p>
+    
+    <br/>
+    
+    <form method="POST" class="medium-5">
+      <label>
+        Codeforces 用户名
+        <input type="text" class="textbox" name="handle" value="{{ handle }}">
+      </label>
+      <label>
+        Codeforces 密码
+        <input type="text" class="textbox" name="password" value="{{ password }}">
+      </label>
+      <label>
+        Codeforces Cookie JSESSIONID
+        <input type="text" class="textbox" name="jsessionid" value="{{ jsessionid }}">
+      </label>
+      <label>
+        Codeforces Cookie 39ce7
+        <input type="text" class="textbox" name="cookie1" value="{{ cookie1 }}">
+      </label>
+      <label>
+        Codeforces Cookie 70a7c28f3de
+        <input type="text" class="textbox" name="cookie2" value="{{ cookie2 }}">
+      </label>
+      <button type="submit" class="button primary rounded">保存配置</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
